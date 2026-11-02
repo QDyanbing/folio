@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 import MarkdownIt from 'markdown-it';
 import { parseResume } from '../src/lib/resume.mjs';
 import { githubUsername, contributionUrl } from '../src/lib/github-contributions.mjs';
+import { formatWorkExperience } from '../src/lib/work-experience.mjs';
 import { serve } from './static-server.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -15,6 +16,8 @@ const resume = parseResume(source);
 const entryCount = resume.sections.reduce((count, section) => count + section.entries.length, 0);
 const lastSection = resume.sections.at(-1).id;
 const username = githubUsername(resume.profile.GitHub?.href);
+const workStart = resume.profile.工作开始时间?.value;
+const initialTime = new Date('2026-11-02T04:00:00Z');
 // Synthetic data is only used in browser tests; the website always requests the live API.
 const contributionFixture = { contributions: Array.from({ length: 366 }, (_, index) => ({
   date: new Date(Date.UTC(2025, 10, 2) + index * 86_400_000).toISOString().slice(0, 10),
@@ -28,6 +31,7 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  await page.clock.setFixedTime(initialTime);
   if (username) await page.route(contributionUrl(username), (route) => route.fulfill({ json: contributionFixture }));
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -39,6 +43,10 @@ try {
     assert.match(await page.locator('[data-total]').textContent(), /730/);
   }
   assert.equal(await page.locator('h1').textContent(), resume.name);
+  if (workStart) {
+    assert.equal(await page.locator('[data-work-start]').getAttribute('data-work-start'), workStart);
+    assert.equal(await page.locator('[data-work-start]').textContent(), formatWorkExperience(workStart, initialTime));
+  }
   assert.equal(await page.locator('article.resume-entry').count(), entryCount);
   assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), process.env.SITE_URL ? new URL('/', process.env.SITE_URL).href : 'https://gaoyanbing.com/');
   const schema = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
@@ -46,18 +54,45 @@ try {
   if (resume.profile.GitHub?.href) assert.equal(schema.mainEntity.sameAs[0], resume.profile.GitHub.href);
   // Compare every substantial text token, including the last bullet, with the actual page.
   const visible = (await page.locator('main').innerText()).replace(/[\s｜|·：:]/g, '');
-  const tokens = new MarkdownIt().parse(source, {}).flatMap((token) => token.children ?? []);
+  // The start-date metadata is rendered as calculated experience and checked separately.
+  const printableSource = source.replace(/^- \*\*工作开始时间[：:]\*\*.*$/m, '');
+  const tokens = new MarkdownIt().parse(printableSource, {}).flatMap((token) => token.children ?? []);
   for (const token of tokens.filter((token) => token.type === 'text' && token.content.trim().length >= 7)) {
     assert.ok(visible.includes(token.content.replace(/[\s｜|·：:]/g, '')), `正文缺失：${token.content}`);
   }
   await page.screenshot({ path: `${screenshots}/desktop.png` });
   await page.locator(`[id="${lastSection}"]`).scrollIntoViewIfNeeded();
   await page.locator(`[id="${lastSection}"]`).screenshot({ path: `${screenshots}/projects.png` });
+  const anniversary = new Date('2027-03-31T16:00:00Z');
+  if (workStart) {
+    // The same built HTML must update when returning to the page in a later year.
+    await page.clock.setFixedTime(anniversary);
+    await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+    assert.equal(await page.locator('[data-work-start]').textContent(), formatWorkExperience(workStart, anniversary));
+    await page.clock.setFixedTime(initialTime);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    assert.equal(await page.locator('[data-work-start]').textContent(), formatWorkExperience(workStart, initialTime));
+    // Advance the date without a lifecycle event: clicking download must refresh
+    // the value before the actual PDF snapshot is rendered.
+    await page.clock.setFixedTime(anniversary);
+    await page.evaluate(() => {
+      window.__exportedWorkExperience = null;
+      const observer = new MutationObserver(() => {
+        const field = document.querySelector('.pdf-export [data-work-start]');
+        if (field) {
+          window.__exportedWorkExperience = field.textContent;
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  }
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 90_000 }), page.locator('.download-button').click()]);
   assert.equal(download.suggestedFilename(), `${resume.name}-个人简历.pdf`);
   const pdf = await readFile(await download.path());
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
   assert.ok(pdf.length > 10_000);
+  if (workStart) assert.equal(await page.evaluate(() => window.__exportedWorkExperience), formatWorkExperience(workStart, anniversary));
   await download.saveAs(`${screenshots}/resume.pdf`);
   await page.waitForFunction(() => !document.querySelector('#download-resume').disabled);
   // Verify click-time DOM capture, including a future async data component and canvas.
@@ -95,6 +130,7 @@ try {
   await staticPage.goto(server.url);
   assert.equal(await staticPage.locator('article.resume-entry').count(), entryCount);
   assert.equal(await staticPage.locator('#download-resume').isVisible(), false);
+  if (workStart) assert.match(await staticPage.locator('[data-work-start]').textContent(), /^\d+ 年$/);
   await noScript.close();
   if (username) {
     // Export initiated before the API responds must wait for the actual chart.
@@ -125,7 +161,7 @@ try {
     await recoveryPage.close();
   }
   assert.deepEqual(errors, []);
-  console.log('通过：全文完整性、SEO、结构化数据、即时 PDF、贡献热力图、等待数据后导出、接口失败重试、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
+  console.log('通过：全文完整性、SEO、结构化数据、工作年限跨年刷新及 PDF 同步、即时 PDF、贡献热力图、等待数据后导出、接口失败重试、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
   console.log(`截图：${screenshots}`);
 } finally {
   await browser.close();

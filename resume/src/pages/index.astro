@@ -3,6 +3,7 @@ import source from '../../高艳兵-个人简历.md?raw';
 import { parseResume, jsonLd } from '../lib/resume.mjs';
 import GithubContributions from '../components/GithubContributions.astro';
 import { githubUsername } from '../lib/github-contributions.mjs';
+import { formatWorkExperience } from '../lib/work-experience.mjs';
 import '@fontsource-variable/noto-sans-sc';
 import '../styles/resume.css';
 import '../styles/print.css';
@@ -13,7 +14,11 @@ const canonical = new URL('/', Astro.site).href;
 const title = `${resume.name} · ${resume.role}｜个人简历`;
 const description = `${resume.name}，${resume.role}。${resume.summary}`;
 const contacts = resume.fields.filter((field) => ['邮箱', '电话', 'GitHub'].includes(field.label));
-const facts = resume.fields.filter((field) => !['姓名', '求职岗位', '邮箱', '电话', 'GitHub'].includes(field.label));
+const facts = resume.fields.filter((field) => !['姓名', '求职岗位', '邮箱', '电话', 'GitHub'].includes(field.label)).map((field) => {
+  if (field.label !== '工作开始时间') return { ...field, workStart: undefined };
+  const value = formatWorkExperience(field.value);
+  return { ...field, label: '工作年限', value, html: value, workStart: field.value };
+});
 const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}` : field.label === '电话' ? `tel:${field.value.replace(/[^+\d]/g, '')}` : field.href;
 ---
 <!doctype html>
@@ -53,7 +58,7 @@ const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}
             <h1 id="name">{resume.name}</h1>
             <p class="role">{resume.role}</p>
             <dl class="profile-facts" aria-label="基本信息">
-              {facts.map((field) => <div><dt>{field.label}：</dt><dd set:html={field.html} /></div>)}
+              {facts.map((field) => <div><dt>{field.label}：</dt><dd data-work-start={field.workStart} set:html={field.html} /></div>)}
             </dl>
             <div class="contacts" aria-label="联系方式">
               {contacts.map((field) => (
@@ -91,6 +96,8 @@ const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}
     <script>
       import { setupExport } from '../lib/export-pdf';
       import { setupContributions } from '../lib/contributions-client';
+      import { setupWorkExperience } from '../lib/work-experience-client';
+      setupWorkExperience();
       setupContributions();
       setupExport();
     </script>
