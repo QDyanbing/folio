@@ -10,6 +10,7 @@
     "dev": "cd resume && astro dev --host 127.0.0.1",
     "build": "astro build --root resume",
     "preview": "cd resume && astro preview --host 127.0.0.1",
+    "deploy": "node resume/scripts/deploy.mjs",
     "test": "node --test resume/tests/*.test.mjs",
     "test:site": "node resume/scripts/check-site.mjs",
     "setup:browser": "playwright install chromium"

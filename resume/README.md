@@ -62,6 +62,8 @@ document.addEventListener('resume:before-export', (event) => {
 
 ## 部署到 gaoyanbing.com
 
+使用 ECS 时可以按 [一键部署说明](DEPLOY.md) 在 `~/.zshrc` 中完成一次性环境变量配置，之后运行 `npm run deploy` 自动构建、上传、切换版本并检查站点；验证失败会恢复上一版。支持密码或密钥登录，脚本只读取终端环境变量，项目内不存储实际部署配置或登录凭据。
+
 默认正式域名是 `https://gaoyanbing.com`。将 **`resume/dist/` 的内容**部署在该域名根路径，目录中包含 HTML、字体、样式、导出脚本、`robots.txt` 和 `sitemap.xml`，运行时无需 Node 服务。不要将整个源码仓库作为站点目录。
 
 | 配置项 | 值 |
