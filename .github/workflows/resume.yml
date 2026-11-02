@@ -1,0 +1,31 @@
+name: Build resume
+
+on:
+  push:
+    paths: ['resume/**', 'package.json', 'package-lock.json', '.node-version', '.github/workflows/resume.yml']
+  pull_request:
+    paths: ['resume/**', 'package.json', 'package-lock.json', '.node-version', '.github/workflows/resume.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resume-site
+          path: resume/dist/
+          if-no-files-found: error

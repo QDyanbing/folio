@@ -1,0 +1,98 @@
+# 个人简历
+
+[`高艳兵-个人简历.md`](高艳兵-个人简历.md) 是唯一的简历元信息来源。HTML 正文和 SEO 信息由它生成；PDF 在访客点击下载时，从当前页面即时生成，包含已渲染的动态内容。
+
+## 本地开发
+
+在仓库根目录运行，使用 Node.js 24（最低 22.23.4）：
+
+```sh
+npm ci
+npm run dev
+```
+
+打开终端输出的本地地址。保存 Markdown 后页面自动刷新；开发环境与正式站点使用同一个即时下载逻辑。
+
+页面使用 Astro 静态生成，原始 HTML 已包含全文。采用标准单栏简历排版：姓名及联系方式居中、章节标题下方横线分隔、学校及公司名称与日期对齐。禁用 JavaScript 时仍可阅读正文，并通过浏览器打印另存为 PDF。中文字体随网站托管，不依赖外部字体服务。PDF 导出库只在点击下载时加载。
+
+## 内容格式
+
+保留基本信息中的 `- **姓名：** …` 和 `- **求职岗位：** …`。其余字段沿用相同格式；已知联系方式自动转为可点击链接，其他基本信息自动列在概览区。
+
+- `## 标题` 表示一个简历章节，自动使用标题及横线分隔。
+- `### 标题｜角色` 表示一项教育、工作或项目经历。
+- `**时间：** …` 表示教育或工作经历的时间。项目经历不显示时间，标题行左侧为项目名称、右侧为承担角色。
+- 普通段落、列表、加粗和链接按 Markdown 渲染。
+- 原始 HTML 不会作为可执行 HTML 渲染。
+
+章节顺序遵循 Markdown 的顺序。新增章节、经历和修改姓名、岗位等内容不需要修改页面模板。
+
+## 构建与即时 PDF 下载
+
+```sh
+npm run build
+npm run preview
+```
+
+`build` 仅生成静态网站。页面的「下载 PDF」按钮会读取当前 DOM，使用 A4 排版即时生成并下载 PDF，**不请求预生成文件，也不需要 PDF 后端或服务器浏览器**。生成过程有进度提示、防重复点击和错误反馈。
+
+直接下载使用浏览器端 html2pdf.js，保留当前动态内容的视觉呈现；PDF 正文以图像呈现，文字不可选中。页面另有「打印」入口，通过浏览器另存为 PDF 时可获得可选中文字的版本。两种方式都使用当前页面，不能自动获取尚未加载的数据。
+
+### 后续加入动态内容
+
+把动态组件放在 `.page-shell` 中的正文区域，下载时会一起复制当前 DOM，包含当前 canvas 图像和表单值。导出中不需要的控件可加 `data-pdf-exclude`。外部图片需正确配置 CORS 才能进入浏览器截图；跨域 iframe、视频和尚未渲染的虚拟列表内容应在导出前转成可导出的 DOM、图片或 canvas。
+
+异步组件可注册以下事件，确保数据准备完成后再抓取页面。不要给导出钩子返回永不结束的 Promise；请求失败应 reject，让页面显示失败信息。
+
+```js
+document.addEventListener('resume:before-export', (event) => {
+  event.detail.waitUntil(loadLatestDataAndRender());
+});
+```
+
+导出使用独立快照和打印布局，不改变页面中已渲染的业务内容。超长列表适合提供精简的打印视图，以控制浏览器画布的内存使用。
+
+## 部署到 gaoyanbing.com
+
+默认正式域名是 `https://gaoyanbing.com`。将 **`resume/dist/` 的内容**部署在该域名根路径，目录中包含 HTML、字体、样式、导出脚本、`robots.txt` 和 `sitemap.xml`，运行时无需 Node 服务。不要将整个源码仓库作为站点目录。
+
+| 配置项 | 值 |
+| --- | --- |
+| 项目根目录 | 仓库根目录 |
+| 安装命令 | `npm ci` |
+| 构建命令 | `npm run build` |
+| 输出目录 | `resume/dist` |
+| Node.js | 24 |
+
+可以连接任意支持静态网站的托管平台，也可以本地或 GitHub Actions 构建后上传静态产物。仓库附带的 CI 会检查并上传名为 `resume-site` 的构建产物，不会自动发布或绑定域名。CI 的 Chromium 只用于验证网页下载行为，构建和部署本身不需要浏览器。
+
+**元信息更新：** 本地开发时保存 Markdown 自动刷新。线上静态文件不会直接读取仓库里的 Markdown，需要将托管平台连接到仓库并启用提交触发构建：修改 Markdown → 提交并推送 → 自动构建 HTML → 自动部署。若使用手动托管，每次修改后运行 `npm run build` 并重新上传整个 `resume/dist/`。页面运行时的动态内容会在点击下载时直接进入 PDF，无需为此重新构建。
+
+更换正式域名时设置 `SITE_URL=https://example.com` 后重新构建；canonical、Open Graph、结构化数据、robots 和 sitemap 会一起更新。目前以根路径部署为约定，不支持直接放在 `/resume/` 等子路径。
+
+## 验证
+
+```sh
+npm test
+npm run build
+npm run setup:browser
+npm run test:site
+```
+
+检查涵盖元信息解析、内容变更、新增章节、输入转义，以及构建后的正文完整性、SEO、即时 PDF 下载、异步动态内容导出、移动端宽度和禁用 JavaScript 的访问。截图和测试 PDF 写入 `tmp/site-check/`，生成目录已加入忽略规则。Linux CI 使用 `npx playwright install --with-deps chromium` 安装测试浏览器。
+
+## 目录
+
+```text
+resume/
+├── 高艳兵-个人简历.md     # 唯一内容源
+├── astro.config.mjs      # 正式域名与静态生成配置
+├── src/lib/resume.mjs    # Markdown 解析
+├── src/lib/export-pdf.ts # 浏览器端即时 PDF 下载
+├── src/pages/           # 页面、robots、sitemap
+├── src/styles/          # 网页与打印样式
+├── public/              # 静态资源
+├── scripts/             # 浏览器验证与临时测试服务器
+├── tests/               # 内容解析测试
+└── dist/                # 构建产物（不提交）
+```

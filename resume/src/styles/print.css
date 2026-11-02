@@ -1,0 +1,38 @@
+@page { size: A4; margin: 13mm 15mm 16mm; }
+@media print {
+  :root { --ink: #222; --muted: #444; --link: #222; }
+  html { scroll-behavior: auto; }
+  body { margin: 0; padding: 0; background: white; color: #222; font-size: 9pt; line-height: 1.65; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page-shell { max-width: none; padding: 0; margin: 0; box-shadow: none; background: white; }
+  .skip-link, [data-pdf-exclude] { display: none !important; }
+  .resume-header { text-align: center; margin-bottom: 11pt; }
+  h1 { font-size: 22pt; font-weight: 700; line-height: 1.4; letter-spacing: .12em; }
+  .role { font-size: 10pt; margin-top: 4pt; line-height: 1.6; }
+  .profile-facts { display: flex; justify-content: center; gap: 3pt 16pt; margin-top: 5pt; font-size: 8pt; }
+  .contacts { display: flex; justify-content: center; gap: 3pt 14pt; margin-top: 4pt; font-size: 8pt; }
+  .summary { margin-bottom: 12pt; }
+  .resume-section { margin-top: 13pt; }
+  .section-heading { margin: 0 0 7pt; padding-bottom: 3pt; border-bottom: 1.2pt solid #333; font-size: 12pt; line-height: 1.5; font-weight: 700; break-after: avoid; }
+  .resume-entry { margin-top: 10pt; break-inside: avoid; }
+  .section-heading + .resume-entry { margin-top: 0; }
+  .section-projects .resume-entry { margin-top: 12pt; padding-top: 10pt; border-top: .6pt solid #b8b8b8; }
+  .section-projects .section-heading + .resume-entry { margin-top: 0; padding-top: 0; border-top: 0; }
+  .entry-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1pt 12pt; margin-bottom: 4pt; break-after: avoid; }
+  h3 { grid-column: 1; grid-row: 1; font-size: 9.5pt; line-height: 1.7; font-weight: 700; }
+  .entry-subtitle { grid-column: 1; grid-row: 2; font-size: 8.5pt; line-height: 1.7; }
+  .entry-date { grid-column: 2; grid-row: 1; font-size: 8.5pt; line-height: 1.9; text-align: right; color: #222; }
+  .section-projects .entry-header { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+  .section-projects .entry-subtitle { grid-column: 2; grid-row: 1; text-align: right; }
+  .section-education .entry-header, .section-experience .entry-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; }
+  .section-education .entry-subtitle, .section-experience .entry-subtitle { grid-column: 2; grid-row: 1; text-align: center; }
+  .section-education .entry-date, .section-experience .entry-date { grid-column: 3; grid-row: 1; text-align: right; }
+  .prose { color: #222; font-size: 9pt; line-height: 1.75; }
+  .prose p { margin-bottom: 4pt; }
+  .prose ul, .prose ol { padding-left: 13pt; margin-top: 4pt; }
+  .prose li { padding-left: 1pt; margin-bottom: 3pt; break-inside: avoid; }
+  .prose strong { font-weight: 700; }
+  .prose .field-label { margin-top: 6pt; margin-bottom: 2pt; break-after: avoid; }
+  .prose .field-label:first-child { margin-top: 0; }
+  .prose .technology { margin-bottom: 5pt; }
+  p, li { orphans: 3; widows: 3; }
+}

@@ -1,0 +1,98 @@
+---
+import source from '../../高艳兵-个人简历.md?raw';
+import { parseResume, jsonLd } from '../lib/resume.mjs';
+import '@fontsource-variable/noto-sans-sc';
+import '../styles/resume.css';
+import '../styles/print.css';
+
+const resume = parseResume(source);
+const canonical = new URL('/', Astro.site).href;
+const title = `${resume.name} · ${resume.role}｜个人简历`;
+const description = `${resume.name}，${resume.role}。${resume.summary}`;
+const contacts = resume.fields.filter((field) => ['邮箱', '电话', 'GitHub'].includes(field.label));
+const facts = resume.fields.filter((field) => !['姓名', '求职岗位', '邮箱', '电话', 'GitHub'].includes(field.label));
+const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}` : field.label === '电话' ? `tel:${field.value.replace(/[^+\d]/g, '')}` : field.href;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="author" content={resume.name} />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#f3f4f6" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <meta property="og:type" content="profile" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={`${resume.name}的个人简历`} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <title>{title}</title>
+    <script type="application/ld+json" set:html={jsonLd(resume, canonical)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳转到简历正文</a>
+      <div class="document-toolbar" data-pdf-exclude>
+        <div class="header-actions" id="export-actions" hidden data-pdf-exclude>
+        <button class="print-button" type="button" id="print-resume" title="使用浏览器打印，或另存为文字可选中的 PDF">打印</button>
+        <button class="download-button" type="button" id="download-resume" data-filename={`${resume.name}-个人简历.pdf`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
+          <span id="download-label">下载 PDF</span>
+        </button>
+        </div>
+        <noscript><span class="print-note">下载 PDF 请使用浏览器的「打印 → 另存为 PDF」。</span></noscript>
+      </div>
+
+    <div class="page-shell">
+      <main id="main">
+        <header class="resume-header" id="overview">
+            <h1 id="name">{resume.name}</h1>
+            <p class="role">{resume.role}</p>
+            <dl class="profile-facts" aria-label="基本信息">
+              {facts.map((field) => <div><dt>{field.label}：</dt><dd set:html={field.html} /></div>)}
+            </dl>
+            <div class="contacts" aria-label="联系方式">
+              {contacts.map((field) => (
+                <a href={contactHref(field)} class={`contact contact-${field.label}`} rel={field.href ? 'me noopener noreferrer' : undefined} target={field.href ? '_blank' : undefined}>
+                  <span class="contact-label">{field.label}：</span>
+                  <span>{field.value}</span>
+                </a>
+              ))}
+            </div>
+        </header>
+        <div class="summary prose" set:html={resume.summaryHtml} />
+
+          <div class="resume-content">
+            {resume.sections.map((section) => (
+              <section class={`resume-section section-${section.id}`} id={section.id} aria-labelledby={`heading-${section.id}`}>
+                <h2 class="section-heading" id={`heading-${section.id}`}>{section.title}</h2>
+                {section.introHtml && <div class="prose section-intro" set:html={section.introHtml} />}
+                {section.entries.map((entry) => (
+                  <article class="resume-entry">
+                    <header class="entry-header">
+                      <h3>{entry.title}</h3>
+                      {entry.subtitle && <p class="entry-subtitle">{entry.subtitle}</p>}
+                      {section.id !== 'projects' && entry.date && <p class="entry-date">{entry.date}</p>}
+                    </header>
+                    <div class="prose entry-body" set:html={entry.html} />
+                  </article>
+                ))}
+              </section>
+            ))}
+          </div>
+      </main>
+    </div>
+    <p class="export-status" id="export-status" role="status" aria-live="polite" data-pdf-exclude></p>
+    <script>
+      import { setupExport } from '../lib/export-pdf';
+      setupExport();
+    </script>
+  </body>
+</html>
