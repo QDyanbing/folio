@@ -10,7 +10,7 @@
 }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 24px; }
-body { margin: 0; padding: 0 24px 48px; background: #f3f4f6; color: var(--ink); font-size: 13px; line-height: 1.8; }
+body { margin: 0; padding: 32px 24px 88px; background: #f3f4f6; color: var(--ink); font-size: 13px; line-height: 1.8; }
 p, h1, h2, h3, dl, dd { margin: 0; }
 a { color: inherit; text-underline-offset: 3px; }
 a:hover { color: var(--link); }
@@ -22,12 +22,17 @@ svg { width: 16px; height: 16px; flex: none; }
 ::selection { background: #dce7f9; }
 .skip-link { position: fixed; left: 16px; top: -100px; z-index: 20; padding: 8px 16px; background: #222; color: white; }
 .skip-link:focus { top: 16px; }
-.document-toolbar { display: flex; justify-content: flex-end; align-items: center; max-width: 960px; min-height: 65px; margin: 0 auto; }
-.header-actions { display: flex; align-items: center; gap: 19px; }
-.print-button { border: 0; background: none; color: var(--muted); padding: 8px 0; font-size: 13px; }
-.download-button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; border: 1px solid #333; border-radius: 4px; background: #333; color: white; font-size: 13px; }
-.download-button:hover { background: #111; }
-.print-note { font-size: 12px; color: var(--muted); }
+.download-button { position: fixed; right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 30; display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border: 0; border-radius: 50%; background: #333; color: white; box-shadow: 0 3px 12px #0003; transition: background .15s, box-shadow .15s; }
+.download-button:hover:not(:disabled) { background: #111; box-shadow: 0 4px 16px #0004; }
+.download-button svg { width: 23px; height: 23px; }
+.download-spinner { display: none; }
+.download-button[aria-busy="true"] .download-icon { display: none; }
+.download-button[aria-busy="true"] .download-spinner { display: block; animation: download-spin .8s linear infinite; }
+@keyframes download-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .download-button { transition: none; }
+  .download-button[aria-busy="true"] .download-spinner { animation: none; }
+}
 .page-shell { max-width: 960px; margin: 0 auto; padding: 42px 50px 50px; background: #fff; box-shadow: 0 2px 12px #0000000d; }
 .resume-header { text-align: center; margin-bottom: 24px; }
 h1 { font-size: 34px; line-height: 1.5; letter-spacing: .12em; font-weight: 700; }
@@ -39,6 +44,21 @@ h1 { font-size: 34px; line-height: 1.5; letter-spacing: .12em; font-weight: 700;
 .contact { display: inline-flex; align-items: baseline; text-decoration: none; overflow-wrap: anywhere; }
 .contact:hover { text-decoration: underline; }
 .contact-label { color: var(--muted); flex: none; }
+.github-contributions { max-width: 740px; margin: 0 auto 20px; padding: 10px 14px 9px; border: 1px solid #d0d7de; border-radius: 5px; }
+.contributions-feedback { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 10px; color: #57606a; font-size: 11px; }
+.github-contributions[data-state="stale"] .contributions-feedback { min-height: 0; margin-bottom: 10px; }
+.contributions-retry { padding: 3px 9px; color: #333; background: white; border: 1px solid #d0d7de; border-radius: 3px; font-size: 12px; }
+.contributions-scroll { overflow-x: auto; scrollbar-width: thin; }
+.contributions-scroll:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+.contributions-chart { min-width: 600px; }
+.contributions-chart svg { display: block; width: 100%; height: auto; }
+.contributions-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; color: #57606a; font-size: 11px; line-height: 1.5; }
+.contributions-footer a { text-decoration: none; }
+.contributions-footer a:hover { text-decoration: underline; }
+.contributions-legend { display: flex; align-items: center; gap: 3px; font-family: Arial, sans-serif; }
+.contributions-legend > span:first-child { margin-right: 2px; }
+.contributions-legend > span:last-child { margin-left: 2px; }
+.contribution-swatch { width: 9px; height: 9px; border: 1px solid #1b1f2314; border-radius: 2px; }
 .summary { margin-bottom: 27px; }
 .resume-section { margin-top: 27px; }
 .section-heading { margin: 0 0 14px; padding-bottom: 5px; border-bottom: 2px solid #333; font-size: 21px; line-height: 1.5; font-weight: 700; }
@@ -70,17 +90,20 @@ h3 { grid-column: 1; grid-row: 1; font-size: 15px; font-weight: 700; line-height
 .prose .field-label { margin-top: 10px; margin-bottom: 3px; }
 .prose .field-label:first-child { margin-top: 0; }
 .prose .technology { margin-bottom: 8px; }
-.export-status { position: fixed; bottom: 22px; right: 24px; max-width: min(360px, calc(100vw - 48px)); padding: 12px 18px; background: #333; color: #fff; border-radius: 4px; font-size: 13px; line-height: 1.7; z-index: 30; }
+.export-status { position: fixed; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); right: calc(24px + env(safe-area-inset-right, 0px)); max-width: min(360px, calc(100vw - 48px)); padding: 12px 18px; background: #333; color: #fff; border-radius: 4px; font-size: 13px; line-height: 1.7; z-index: 30; }
 .export-status:empty { display: none; }
 @media (max-width: 700px) {
-  body { padding: 0 0 24px; }
-  .document-toolbar { min-height: 58px; padding: 0 20px; }
+  body { padding: 0 0 calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .download-button { right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; }
+  .export-status { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); }
   .page-shell { padding: 27px 22px 35px; box-shadow: none; }
   h1 { font-size: 30px; }
   .role { font-size: 15px; }
   .profile-facts { font-size: 12px; gap: 3px 13px; }
   .contacts { font-size: 12px; gap: 5px 13px; }
   .resume-header { margin-bottom: 21px; }
+  .github-contributions { padding: 9px 10px; margin-bottom: 18px; }
+  .contributions-footer { font-size: 10px; gap: 7px; }
   .summary { margin-bottom: 23px; }
   .resume-section { margin-top: 24px; }
   .section-heading { font-size: 19px; margin-bottom: 12px; }

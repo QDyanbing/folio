@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import MarkdownIt from 'markdown-it';
 import { parseResume } from '../src/lib/resume.mjs';
+import { githubUsername, contributionUrl } from '../src/lib/github-contributions.mjs';
 import { serve } from './static-server.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -13,6 +14,13 @@ const source = await readFile(new URL('../高艳兵-个人简历.md', import.met
 const resume = parseResume(source);
 const entryCount = resume.sections.reduce((count, section) => count + section.entries.length, 0);
 const lastSection = resume.sections.at(-1).id;
+const username = githubUsername(resume.profile.GitHub?.href);
+// Synthetic data is only used in browser tests; the website always requests the live API.
+const contributionFixture = { contributions: Array.from({ length: 366 }, (_, index) => ({
+  date: new Date(Date.UTC(2025, 10, 2) + index * 86_400_000).toISOString().slice(0, 10),
+  count: index % 5,
+  level: index % 5,
+})) };
 await mkdir(screenshots, { recursive: true });
 const server = await serve(output);
 const browser = await chromium.launch({
@@ -20,10 +28,16 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  if (username) await page.route(contributionUrl(username), (route) => route.fulfill({ json: contributionFixture }));
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(server.url, { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);
+  if (username) {
+    await page.waitForSelector('[data-github-user][data-state="ready"]');
+    assert.equal(await page.locator('.contributions-chart rect').count(), 366);
+    assert.match(await page.locator('[data-total]').textContent(), /730/);
+  }
   assert.equal(await page.locator('h1').textContent(), resume.name);
   assert.equal(await page.locator('article.resume-entry').count(), entryCount);
   assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), process.env.SITE_URL ? new URL('/', process.env.SITE_URL).href : 'https://gaoyanbing.com/');
@@ -80,11 +94,38 @@ try {
   const staticPage = await noScript.newPage();
   await staticPage.goto(server.url);
   assert.equal(await staticPage.locator('article.resume-entry').count(), entryCount);
-  assert.equal(await staticPage.locator('#export-actions').isVisible(), false);
-  assert.match(await staticPage.locator('noscript').innerText(), /打印/);
+  assert.equal(await staticPage.locator('#download-resume').isVisible(), false);
   await noScript.close();
+  if (username) {
+    // Export initiated before the API responds must wait for the actual chart.
+    const waitingPage = await browser.newPage();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    await waitingPage.route(contributionUrl(username), async (route) => { await gate; await route.fulfill({ json: contributionFixture }); });
+    await waitingPage.goto(server.url, { waitUntil: 'domcontentloaded' });
+    const delayedDownload = waitingPage.waitForEvent('download', { timeout: 90_000 });
+    await waitingPage.locator('.download-button').click();
+    assert.equal(await waitingPage.locator('.download-button').isDisabled(), true);
+    assert.equal(await waitingPage.locator('[data-github-user]').getAttribute('data-state'), 'loading');
+    release();
+    await delayedDownload;
+    assert.equal(await waitingPage.locator('.contributions-chart rect').count(), 366);
+    await waitingPage.close();
+    // An unavailable API shows a retry UI and recovers without reloading the page.
+    const recoveryPage = await browser.newPage();
+    let attempts = 0;
+    await recoveryPage.route(contributionUrl(username), (route) => ++attempts === 1
+      ? route.fulfill({ status: 503, body: 'Unavailable' }) : route.fulfill({ json: contributionFixture }));
+    await recoveryPage.goto(server.url);
+    await recoveryPage.waitForSelector('[data-github-user][data-state="error"]');
+    assert.equal(await recoveryPage.locator('.contributions-chart rect').count(), 0);
+    await recoveryPage.locator('[data-retry]').click();
+    await recoveryPage.waitForSelector('[data-github-user][data-state="ready"]');
+    assert.equal(await recoveryPage.locator('.contributions-chart rect').count(), 366);
+    await recoveryPage.close();
+  }
   assert.deepEqual(errors, []);
-  console.log('通过：全文完整性、SEO、结构化数据、即时 PDF 下载、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
+  console.log('通过：全文完整性、SEO、结构化数据、即时 PDF、贡献热力图、等待数据后导出、接口失败重试、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
   console.log(`截图：${screenshots}`);
 } finally {
   await browser.close();

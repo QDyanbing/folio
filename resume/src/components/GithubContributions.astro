@@ -1,0 +1,20 @@
+---
+import { CONTRIBUTION_COLORS } from '../lib/github-contributions.mjs';
+const { username } = Astro.props;
+---
+<section class="github-contributions" data-github-user={username} data-state="loading" aria-label={`${username} 的 GitHub 贡献`} aria-busy="false">
+  <div class="contributions-feedback" data-feedback hidden>
+    <p data-message role="status">正在加载 GitHub 贡献…</p>
+    <button class="contributions-retry" type="button" data-retry hidden data-pdf-exclude>重新加载</button>
+  </div>
+  <div class="contributions-content" data-calendar hidden>
+    <div class="contributions-scroll" tabindex="0" aria-label="GitHub 近一年贡献日历，可横向滚动">
+      <div class="contributions-chart" data-chart></div>
+    </div>
+    <div class="contributions-footer">
+      <a data-total href={`https://github.com/${username}`} target="_blank" rel="noopener noreferrer"></a>
+      <div class="contributions-legend" aria-label="颜色越深，贡献越多"><span>Less</span>{CONTRIBUTION_COLORS.map((color) => <span class="contribution-swatch" style={`background-color: ${color}`} aria-hidden="true"></span>)}<span>More</span></div>
+    </div>
+  </div>
+  <noscript><p>请启用 JavaScript 查看贡献图，或<a href={`https://github.com/${username}`}>前往 GitHub 查看</a>。</p></noscript>
+</section>

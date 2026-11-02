@@ -10,6 +10,11 @@
   .role { font-size: 10pt; margin-top: 4pt; line-height: 1.6; }
   .profile-facts { display: flex; justify-content: center; gap: 3pt 16pt; margin-top: 5pt; font-size: 8pt; }
   .contacts { display: flex; justify-content: center; gap: 3pt 14pt; margin-top: 4pt; font-size: 8pt; }
+  .github-contributions { padding: 8pt 10pt; margin-bottom: 11pt; border: .6pt solid #d0d7de; border-radius: 4pt; break-inside: avoid; }
+  .contributions-scroll { overflow: visible; }
+  .contributions-chart { min-width: 0; }
+  .contributions-footer { margin-top: 5pt; font-size: 7.5pt; }
+  .contribution-swatch { width: 7pt; height: 7pt; }
   .summary { margin-bottom: 12pt; }
   .resume-section { margin-top: 13pt; }
   .section-heading { margin: 0 0 7pt; padding-bottom: 3pt; border-bottom: 1.2pt solid #333; font-size: 12pt; line-height: 1.5; font-weight: 700; break-after: avoid; }

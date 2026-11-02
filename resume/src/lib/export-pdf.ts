@@ -49,6 +49,7 @@ function snapshotPage() {
     }
   });
   snapshot.querySelectorAll('[data-pdf-exclude], script, noscript').forEach((node) => node.remove());
+  snapshot.querySelectorAll('.contributions-scroll').forEach((node) => { node.scrollLeft = 0; });
   // html2pdf does not honor break-after: avoid. Keep a section title and its
   // first content block together so the title cannot be left at a page foot.
   snapshot.querySelectorAll('.section-heading').forEach((heading) => {
@@ -66,25 +67,25 @@ function snapshotPage() {
 }
 
 export function setupExport() {
-  const actions = document.querySelector<HTMLElement>('#export-actions');
   const button = document.querySelector<HTMLButtonElement>('#download-resume');
-  const printButton = document.querySelector<HTMLButtonElement>('#print-resume');
-  const label = document.querySelector<HTMLElement>('#download-label');
   const status = document.querySelector<HTMLElement>('#export-status');
-  if (!actions || !button || !printButton || !label || !status) return;
-  actions.hidden = false;
+  if (!button || !status) return;
+  button.hidden = false;
+  let statusTimer: ReturnType<typeof setTimeout> | undefined;
 
-  printButton.addEventListener('click', async () => {
-    try { await preparePage(); window.print(); }
-    catch { status.textContent = '内容还未准备好，请稍后重试。'; }
-  });
+  function showStatus(message: string, clearAfter = 0) {
+    clearTimeout(statusTimer);
+    status!.textContent = message;
+    if (clearAfter) statusTimer = setTimeout(() => { status!.textContent = ''; }, clearAfter);
+  }
 
   button.addEventListener('click', async () => {
     if (button.disabled) return;
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
-    label.textContent = '正在生成…';
-    status.textContent = '正在生成当前简历的 PDF，请稍候。';
+    button.setAttribute('aria-label', '正在生成 PDF');
+    button.title = '正在生成 PDF';
+    showStatus('正在生成当前简历的 PDF，请稍候。');
     const style = document.createElement('style');
     try {
       const [{ default: html2pdf }] = await Promise.all([import('html2pdf.js'), preparePage()]);
@@ -109,7 +110,7 @@ export function setupExport() {
           },
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: { mode: ['css'], avoid: ['.pdf-section-lead', '.resume-entry', '.section-heading', '.entry-header', 'li', 'img', 'canvas'] },
+        pagebreak: { mode: ['css'], avoid: ['.github-contributions', '.pdf-section-lead', '.resume-entry', '.section-heading', '.entry-header', 'li', 'img', 'canvas'] },
       }).from(root).toPdf().get('pdf').then((pdf: any) => {
         const pages = pdf.internal.getNumberOfPages();
         pdf.setProperties({ title: document.title, subject: '个人简历', creator: location.hostname });
@@ -120,16 +121,17 @@ export function setupExport() {
           pdf.text(`${index} / ${pages}`, 105, 289, { align: 'center' });
         }
       }).save();
-      status.textContent = 'PDF 已生成，下载已开始。';
+      showStatus('PDF 已生成，下载已开始。', 5000);
     } catch (error) {
       console.error('PDF export failed:', error);
-      status.textContent = 'PDF 生成失败，请重试，或点击「打印」另存为 PDF。';
+      showStatus('PDF 生成失败，请稍后点击下载图标重试。');
     } finally {
       style.remove();
       document.querySelectorAll('.html2pdf__overlay').forEach((overlay) => overlay.remove());
       button.disabled = false;
       button.removeAttribute('aria-busy');
-      label.textContent = '下载 PDF';
+      button.setAttribute('aria-label', '下载 PDF');
+      button.title = '下载 PDF';
     }
   });
 }

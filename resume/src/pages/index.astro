@@ -1,11 +1,14 @@
 ---
 import source from '../../高艳兵-个人简历.md?raw';
 import { parseResume, jsonLd } from '../lib/resume.mjs';
+import GithubContributions from '../components/GithubContributions.astro';
+import { githubUsername } from '../lib/github-contributions.mjs';
 import '@fontsource-variable/noto-sans-sc';
 import '../styles/resume.css';
 import '../styles/print.css';
 
 const resume = parseResume(source);
+const username = githubUsername(resume.profile.GitHub?.href);
 const canonical = new URL('/', Astro.site).href;
 const title = `${resume.name} · ${resume.role}｜个人简历`;
 const description = `${resume.name}，${resume.role}。${resume.summary}`;
@@ -39,16 +42,10 @@ const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}
   </head>
   <body>
     <a class="skip-link" href="#main">跳转到简历正文</a>
-      <div class="document-toolbar" data-pdf-exclude>
-        <div class="header-actions" id="export-actions" hidden data-pdf-exclude>
-        <button class="print-button" type="button" id="print-resume" title="使用浏览器打印，或另存为文字可选中的 PDF">打印</button>
-        <button class="download-button" type="button" id="download-resume" data-filename={`${resume.name}-个人简历.pdf`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
-          <span id="download-label">下载 PDF</span>
-        </button>
-        </div>
-        <noscript><span class="print-note">下载 PDF 请使用浏览器的「打印 → 另存为 PDF」。</span></noscript>
-      </div>
+    <button class="download-button" type="button" id="download-resume" aria-label="下载 PDF" title="下载 PDF" data-filename={`${resume.name}-个人简历.pdf`} hidden data-pdf-exclude>
+      <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
+      <svg class="download-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity=".25" /><path d="M12 3a9 9 0 0 1 9 9" /></svg>
+    </button>
 
     <div class="page-shell">
       <main id="main">
@@ -67,6 +64,7 @@ const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}
               ))}
             </div>
         </header>
+        {username && <GithubContributions username={username} />}
         <div class="summary prose" set:html={resume.summaryHtml} />
 
           <div class="resume-content">
@@ -92,6 +90,8 @@ const contactHref = (field) => field.label === '邮箱' ? `mailto:${field.value}
     <p class="export-status" id="export-status" role="status" aria-live="polite" data-pdf-exclude></p>
     <script>
       import { setupExport } from '../lib/export-pdf';
+      import { setupContributions } from '../lib/contributions-client';
+      setupContributions();
       setupExport();
     </script>
   </body>
