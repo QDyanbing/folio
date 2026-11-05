@@ -55,6 +55,7 @@ function renderCalendar(container: HTMLElement, calendar: ReturnType<typeof cont
   container.querySelector<HTMLElement>('[data-calendar]')!.hidden = false;
   container.querySelector<HTMLElement>('[data-feedback]')!.hidden = true;
   container.dataset.state = 'ready';
+  container.removeAttribute('data-pdf-exclude');
   const scroll = container.querySelector<HTMLElement>('.contributions-scroll')!;
   // Narrow screens initially show the most recent weeks; the PDF uses the full year.
   scroll.scrollLeft = scroll.scrollWidth;
@@ -74,6 +75,8 @@ export function setupContributions() {
     if (pending) return pending;
     if (loadedAt && Date.now() - loadedAt < FRESH_FOR) return Promise.resolve();
     container!.setAttribute('aria-busy', 'true');
+    // Only a successful refresh makes this optional block part of the PDF.
+    container!.setAttribute('data-pdf-exclude', '');
     retry.hidden = true;
     message.textContent = '正在加载 GitHub 贡献…';
     pending = (async () => {
@@ -102,7 +105,9 @@ export function setupContributions() {
   retry.addEventListener('click', () => { void refresh().catch(() => {}); });
   document.addEventListener('resume:before-export', (event) => {
     const prepare = event as CustomEvent<{ waitUntil: (promise: Promise<unknown>) => void }>;
-    prepare.detail.waitUntil(refresh());
+    // Failed or timed-out requests leave the whole block excluded, but must
+    // not prevent the rest of the resume from downloading.
+    prepare.detail.waitUntil(refresh().catch(() => {}));
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refresh().catch(() => {});

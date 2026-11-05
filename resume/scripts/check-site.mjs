@@ -19,11 +19,48 @@ const username = githubUsername(resume.profile.GitHub?.href);
 const workStart = resume.profile.工作开始时间?.value;
 const initialTime = new Date('2026-11-02T04:00:00Z');
 // Synthetic data is only used in browser tests; the website always requests the live API.
-const contributionFixture = { contributions: Array.from({ length: 366 }, (_, index) => ({
-  date: new Date(Date.UTC(2025, 10, 2) + index * 86_400_000).toISOString().slice(0, 10),
-  count: index % 5,
+// Extra history and reverse ordering must still produce the latest 53-week chart.
+const contributionFixture = { contributions: Array.from({ length: 800 }, (_, index) => ({
+  date: new Date(Date.UTC(2026, 10, 7) - index * 86_400_000).toISOString().slice(0, 10),
+  count: index < 371 ? index % 5 : 1000,
   level: index % 5,
 })) };
+
+async function downloadSnapshot(page, filename) {
+  // Inspect the actual DOM passed to html2pdf, not just the visible website.
+  await page.evaluate(() => {
+    window.__pdfSnapshot = null;
+    const observer = new MutationObserver(() => {
+      const snapshot = document.querySelector('.pdf-export');
+      if (!snapshot) return;
+      window.__pdfSnapshot = {
+        contributionBlocks: snapshot.querySelectorAll('[data-github-user]').length,
+        squares: snapshot.querySelectorAll('.contributions-chart rect').length,
+        entries: snapshot.querySelectorAll('article.resume-entry').length,
+        text: snapshot.textContent,
+      };
+      observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 45_000 }),
+    page.locator('.download-button').click(),
+  ]);
+  const pdf = await readFile(await download.path());
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  assert.ok(pdf.length > 10_000);
+  assert.equal(download.suggestedFilename(), `${resume.name}-个人简历.pdf`);
+  await download.saveAs(`${screenshots}/${filename}.pdf`);
+  await page.waitForFunction(() => !document.querySelector('#download-resume').disabled);
+  assert.equal(await page.locator('.html2pdf__overlay').count(), 0);
+  const snapshot = await page.evaluate(() => window.__pdfSnapshot);
+  assert.ok(snapshot, '未捕获到实际 PDF 快照');
+  assert.equal(snapshot.entries, entryCount, 'PDF 缺少简历经历');
+  assert.ok(snapshot.text.includes(resume.name));
+  return snapshot;
+}
+
 await mkdir(screenshots, { recursive: true });
 const server = await serve(output);
 const browser = await chromium.launch({
@@ -39,8 +76,10 @@ try {
   await page.evaluate(() => document.fonts.ready);
   if (username) {
     await page.waitForSelector('[data-github-user][data-state="ready"]');
-    assert.equal(await page.locator('.contributions-chart rect').count(), 366);
-    assert.match(await page.locator('[data-total]').textContent(), /730/);
+    assert.equal(await page.locator('.contributions-chart rect').count(), 371);
+    assert.equal(await page.locator('.contributions-chart rect').first().getAttribute('data-date'), '2025-11-02');
+    assert.equal(await page.locator('.contributions-chart rect').last().getAttribute('data-date'), '2026-11-07');
+    assert.match(await page.locator('[data-total]').textContent(), /740/);
   }
   assert.equal(await page.locator('h1').textContent(), resume.name);
   if (workStart) {
@@ -139,29 +178,63 @@ try {
     const gate = new Promise((resolve) => { release = resolve; });
     await waitingPage.route(contributionUrl(username), async (route) => { await gate; await route.fulfill({ json: contributionFixture }); });
     await waitingPage.goto(server.url, { waitUntil: 'domcontentloaded' });
-    const delayedDownload = waitingPage.waitForEvent('download', { timeout: 90_000 });
-    await waitingPage.locator('.download-button').click();
+    const delayedDownload = downloadSnapshot(waitingPage, 'resume-delayed-contributions');
+    await waitingPage.waitForFunction(() => document.querySelector('#download-resume').disabled);
     assert.equal(await waitingPage.locator('.download-button').isDisabled(), true);
     assert.equal(await waitingPage.locator('[data-github-user]').getAttribute('data-state'), 'loading');
     release();
-    await delayedDownload;
-    assert.equal(await waitingPage.locator('.contributions-chart rect').count(), 366);
+    const delayedSnapshot = await delayedDownload;
+    assert.equal(delayedSnapshot.contributionBlocks, 1);
+    assert.equal(delayedSnapshot.squares, 371);
+    assert.equal(await waitingPage.locator('.contributions-chart rect').count(), 371);
     await waitingPage.close();
-    // An unavailable API shows a retry UI and recovers without reloading the page.
+    // An unavailable API must not block a complete PDF or leave an empty card.
     const recoveryPage = await browser.newPage();
-    let attempts = 0;
-    await recoveryPage.route(contributionUrl(username), (route) => ++attempts === 1
+    recoveryPage.on('pageerror', (error) => errors.push(error.message));
+    await recoveryPage.clock.setFixedTime(initialTime);
+    let unavailable = true;
+    await recoveryPage.route(contributionUrl(username), (route) => unavailable
       ? route.fulfill({ status: 503, body: 'Unavailable' }) : route.fulfill({ json: contributionFixture }));
     await recoveryPage.goto(server.url);
     await recoveryPage.waitForSelector('[data-github-user][data-state="error"]');
     assert.equal(await recoveryPage.locator('.contributions-chart rect').count(), 0);
+    const failedSnapshot = await downloadSnapshot(recoveryPage, 'resume-without-contributions');
+    assert.equal(failedSnapshot.contributionBlocks, 0);
+    assert.doesNotMatch(failedSnapshot.text, /暂时无法|正在加载 GitHub|重新加载/);
+    assert.equal(await recoveryPage.locator('[data-retry]').isVisible(), true);
+    // A later successful retry restores the chart in the next PDF.
+    unavailable = false;
     await recoveryPage.locator('[data-retry]').click();
     await recoveryPage.waitForSelector('[data-github-user][data-state="ready"]');
-    assert.equal(await recoveryPage.locator('.contributions-chart rect').count(), 366);
+    const recoveredSnapshot = await downloadSnapshot(recoveryPage, 'resume-recovered-contributions');
+    assert.equal(recoveredSnapshot.contributionBlocks, 1);
+    assert.equal(recoveredSnapshot.squares, 371);
+    // If a later refresh fails, omit even the old chart from the PDF while
+    // retaining the website's existing data and retry controls.
+    unavailable = true;
+    await recoveryPage.clock.setFixedTime(new Date(initialTime.getTime() + 6 * 60_000));
+    const staleSnapshot = await downloadSnapshot(recoveryPage, 'resume-stale-contributions');
+    assert.equal(staleSnapshot.contributionBlocks, 0);
+    assert.equal(await recoveryPage.locator('[data-github-user]').getAttribute('data-state'), 'stale');
+    assert.equal(await recoveryPage.locator('[data-calendar]').isVisible(), true);
+    assert.equal(await recoveryPage.locator('[data-retry]').isVisible(), true);
     await recoveryPage.close();
+    for (const failure of ['network', 'timeout']) {
+      const failurePage = await browser.newPage();
+      failurePage.on('pageerror', (error) => errors.push(error.message));
+      // Withhold the response to exercise the real 12-second request timeout.
+      await failurePage.route(contributionUrl(username), (route) => failure === 'network' ? route.abort('failed') : undefined);
+      await failurePage.goto(server.url, { waitUntil: 'domcontentloaded' });
+      const failedSnapshot = await downloadSnapshot(failurePage, `resume-contributions-${failure}`);
+      assert.equal(failedSnapshot.contributionBlocks, 0);
+      assert.doesNotMatch(failedSnapshot.text, /暂时无法|正在加载 GitHub|重新加载/);
+      assert.equal(await failurePage.locator('[data-github-user]').getAttribute('data-state'), 'error');
+      assert.equal(await failurePage.locator('[data-retry]').isVisible(), true);
+      await failurePage.close();
+    }
   }
   assert.deepEqual(errors, []);
-  console.log('通过：全文完整性、SEO、结构化数据、工作年限跨年刷新及 PDF 同步、即时 PDF、贡献热力图、等待数据后导出、接口失败重试、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
+  console.log('通过：全文完整性、SEO、结构化数据、工作年限跨年刷新及 PDF 同步、即时 PDF、贡献热力图、等待数据后导出、贡献接口失败/断网/超时降级导出、失败重试恢复、过期图表排除、动态内容导出、390/320px 布局、禁用 JavaScript 阅读。');
   console.log(`截图：${screenshots}`);
 } finally {
   await browser.close();
